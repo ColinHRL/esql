@@ -18,7 +18,11 @@ export default class DBES {
         let parsed = JSON.parse(json);
         // if the root object is not null, add it
         if (parsed !== null && typeof parsed === 'object') {
-            return this.#addObject(name, parsed);
+            const success = this.#addObject(name, parsed);
+            if (success) {
+                this.#buildForeignKeys();
+                return true;
+            }
         }
         // else return false because nothing was added
         return false;
@@ -90,5 +94,42 @@ export default class DBES {
             return false;
         }
         return true;
+    }
+
+    #buildForeignKeys() {
+        // loop over each table
+        for (let table of this.#tables.values()) {
+            // see if the table name is a foreign key in another table by likness
+            for (let table2 of this.#tables.values()) {
+                if (table.name !== table2.name) {
+                    for (let key of table2.columns) {
+                        if (this.#likeForeignKey(table.name, key)) {
+                            table.addForeignKey(table2.name);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #likeForeignKey(tableName, key) {
+        // key will be {like table name}id or {like table name}_id, and table name could be pluralized, so we match as best we can with the table name
+        if (typeof key !== 'string' || key === '' || typeof tableName !== 'string' || tableName === '') {
+            return false;
+        }
+        const like = key.toLowerCase();
+        const table = tableName.toLowerCase();
+        let forgeinKeyFound = false;
+        if (table.length >= 1 && (like === `${table}id` || like === `${table}_id`)) {
+            forgeinKeyFound = true;
+        }
+        if (!forgeinKeyFound && table.length > 1 && (like === `${table.substring(0, table.length - 1)}id` || like === `${table.substring(0, table.length - 1)}_id`)) {
+            forgeinKeyFound = true;
+
+        }
+        if (!forgeinKeyFound && table.length > 2 && (like === `${table.substring(0, table.length - 2)}id` || like === `${table.substring(0, table.length - 2)}_id`)) {
+            forgeinKeyFound = true;
+        }
+        return forgeinKeyFound;
     }
 }

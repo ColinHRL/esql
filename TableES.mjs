@@ -10,11 +10,10 @@
  */
 export default class TableES {
     name;
-    #localKeys = new Set();
-    #foreignKeys = new Map();
+    #primaryKey = 'id';
     #columns = new Set();
     #records = new Map();
-
+    #foreignKeys = new Map();
     /**
      * Creates a new instance of the TableES class.
      * @param {string} name - The name of the table.
@@ -35,25 +34,43 @@ export default class TableES {
         } else {
             // loop over keys in data and add them to the columns
             const record = {};
+            let primaryKey = undefined;
             for (let key in data) {
                 const normalizedKey = key.toLowerCase();
-                if (!this.#columns.has(normalizedKey) && typeof data[key] !== 'object' && data[key] !== null && data[key] !== undefined) {
-                    this.#columns.push(normalizedKey);
+                if (typeof data[key] !== 'object' && data[key] !== null && data[key] !== undefined) {
+                    this.#columns.add(normalizedKey);
                     // if the key is like a local key, add it to the local keys
-                    if (this.#localKeys.size === 0 && this.#isLikeLocalKey(normalizedKey)) {
-                        this.#localKeys.add(normalizedKey);
+                    if (this.#isLikeLocalKey(normalizedKey)) {
+                        record[this.#primaryKey] = data[key];
+                        primaryKey = data[key];
+                    } else {
+                        record[normalizedKey] = data[key];
                     }
-                    // add the data to the record
-                    record[normalizedKey] = data[key];
                 }
             }
-            // if the record has a local key, check for existing record and set it
-            const localKey = this.#getLikeLocaLKey(record);
-            if (localKey !== undefined) {
-                this.#records.set(record[localKey], record);
+            // if the record has a primary key, check for existing record and merge new record on top of existing
+            if (primaryKey !== undefined) {
+                const existingRecord = this.#records.get(primaryKey);
+                if (existingRecord) {
+                    this.#records.set(primaryKey, { ...existingRecord, ...record });
+                } else {
+                    this.#records.set(primaryKey, record);
+                }
             }
         }
         return this;
+    }
+
+    addForeignKey(key) {
+        // check if key is a string and not empty
+        if (typeof key === 'string' && key !== '') {
+            return false;
+        }
+        // check if key in columns
+        if (this.#columns.has(key.toLowerCase())) {
+            //
+            return true;
+        }
     }
 
     #isLikeLocalKey(key) {
@@ -62,18 +79,5 @@ export default class TableES {
         }
         const normalizedKey = key.toLowerCase();
         return normalizedKey === `${this.name}id` || normalizedKey === `${this.name}_id` || normalizedKey === 'id';
-    }
-
-    #getLikeLocaLKey(record) {
-        if (typeof record !== 'object' || key === null) {
-            return undefined;
-        }
-        // loop over keys in record and return the first local key
-        for (let key in record) {
-            if (this.#isLikeLocalKey(key)) {
-                return key;
-            }
-        }
-        return undefined;
     }
 }
